@@ -91,8 +91,7 @@ def isline(filters, linename):
 def main():
     cmdline = Options()
     lines = []
-#    html = HTML('http://www.marctracker.com/PublicView/status.jsp')
-    webpage = HTML('http://web.archive.org/web/20140114221629/http://www.marctracker.com/PublicView/status.jsp')
+    webpage = HTML('http://www.marctracker.com/PublicView/status.jsp')
     webpage.tables = webpage.gettables()
     for tbl in webpage.tables:
         line = TrainLine(tbl)
