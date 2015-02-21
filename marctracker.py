@@ -1,85 +1,114 @@
 #!/usr/bin/python
 
-import re
 import sys
-import urllib2
-from lxml import html,etree
+import urllib.request
+import argparse
+from prettytable import PrettyTable
+from lxml import html
 
-class HTML():
-    def __init__(self,url):
+
+class Options:
+    def __init__(self):
+        self.parser = argparse.ArgumentParser()
+        self.options = self.args()
+
+    def args(self):
+        self.parser.add_argument('-l', '--line', dest='line',
+                                 help='line to filter for')
+        self.parser.add_argument('-d', '--direction', dest='direction',
+                                 help='direction to filter for')
+        return self.parser.parse_args()
+
+
+class HTML:
+    def __init__(self, url):
         self.url = url
-        self.res = urllib2.urlopen(self.url)
+        self.res = urllib.request.urlopen(self.url)
         self.tree = html.fromstring(self.res.read())
         self.tables = []
 
     def gettables(self):
         return self.tree.xpath('/html/body/table[3]/tr/td/table')
 
-class Table():
-    def __init__(self,tree):
+
+class TrainLine:
+    def __init__(self, tree):
         self.tree = tree
-        self.line = self.getline()
-        self.isline = self.checkline()
+        self.name = str(self.tree.xpath('.//td[@class="textStatusLine"]/text()'))
         self.hastrains = False
         self.headers = []
         self.trains = []
 
-    def getline(self):
-        return str(self.tree.xpath('.//td[@class="textStatusLine"]/text()'))
-
-    def checkline(self):
-        if 'BRUNSWICK' in self.line:
-            return True
-
     def getheaders(self):
         trees = self.tree.xpath('.//tr[@class="textStatusHdr"]')
-        return [ tree.xpath('.//th/text()') for tree in trees ]
+        return [tree.xpath('.//th/text()') for tree in trees]
 
     def gettrains(self):
         trains = []
         trees = self.tree.xpath('.//tr[@class="textStatusAll"]')
-        rows = [ tree.xpath('.//td') for tree in trees ]
+        rows = [tree.xpath('.//td') for tree in trees]
         for row in rows:
-            text = [ column.text_content().strip() for column in row ]
-            train = { 'holder1':text[0],
-                      'holder2':text[1],
-                      'id':text[2],
-                      'dest':text[3],
-                      'depart':text[4],
-                      'status':text[5],
-                      'delay':text[6],
-                      'last':text[7],
-                      'msg':text[8] }
+            text = [str(column.text_content().strip()) for column in row]
+            train = {'holder1': text[0],
+                     'holder2': text[1],
+                     'id': text[2],
+                     'dest': text[3],
+                     'depart': text[4],
+                     'status': text[5],
+                     'delay': text[6],
+                     'last': text[7],
+                     'msg': text[8]}
             trains.append(train)
         return trains
 
-def DEBUG(name, output):
-    with open(name+'.debug','w') as o:
+
+def debug(name, output):
+    with open(name+'.debug', 'w') as o:
         for line in output:
             o.write(line)
 
-def main():
-    Lines = []
-    html = HTML('http://www.marctracker.com/PublicView/status.jsp')
-    html = HTML('http://web.archive.org/web/20140114221629/http://www.marctracker.com/PublicView/status.jsp')
-    html.tables = html.gettables()
-    for tbl in html.tables:
-        table = Table(tbl)
-        if table.isline:
-            table.headers = table.getheaders()
-            table.trains = table.gettrains()
-            if len(table.trains) > 0:
-                Lines.append(table)
 
-    for Line in Lines:
-        print '''%s
----''' % (Line.line)
-        for train in Line.trains:
-            print '%6s || %-25s || %10s || %10s' % (train['id'],train['dest'],train['status'],train['depart'])
-    
+def display(data):
+    print('===========\n{:s}'.format(data.name.strip("'[]'")))
+    table = PrettyTable([k for k, v in data.trains[0].items()])
+    for train in data.trains:
+        table.padding_width = 1
+        table.add_row([v for k, v in train.items()])
+    table.sortby = 'depart'
+    print(table)
+
+
+def isline(filters, linename):
+    if not filters.line:
+        filters.line = ''
+    if not filters.direction:
+        filters.direction = ''
+    filter = ' '.join([filters.line, filters.direction])
+    if filter.strip() in linename:
+        return True
+
+
+def main():
+    cmdline = Options()
+    lines = []
+#    html = HTML('http://www.marctracker.com/PublicView/status.jsp')
+    webpage = HTML('http://web.archive.org/web/20140114221629/http://www.marctracker.com/PublicView/status.jsp')
+    webpage.tables = webpage.gettables()
+    for tbl in webpage.tables:
+        line = TrainLine(tbl)
+        if isline(cmdline.options, line.name):
+            line.headers = line.getheaders()
+            line.trains = line.gettrains()
+            if len(line.trains) > 0:
+                line.hastrains = True
+                lines.append(line)
+
+    for line in lines:
+        display(line)
+
 if __name__ == '__main__':
     try:
         main()
     except KeyboardInterrupt:
-        print "{!!Abort!!}"
+        print("{!!Abort!!}")
         sys.exit(1)
