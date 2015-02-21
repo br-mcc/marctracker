@@ -3,6 +3,7 @@
 import sys
 import urllib.request
 import argparse
+from datetime import datetime
 from prettytable import PrettyTable
 from lxml import html
 
@@ -13,6 +14,8 @@ class Options:
         self.options = self.args()
 
     def args(self):
+        self.parser.add_argument('-f', '--file', dest='file',
+                                 help='File to write train data.')
         self.parser.add_argument('-l', '--line', dest='line',
                                  help='line to filter for')
         self.parser.add_argument('-d', '--direction', dest='direction',
@@ -68,14 +71,13 @@ def debug(name, output):
             o.write(line)
 
 
-def display(data):
-    print('===========\n{:s}'.format(data.name.strip("'[]'")))
+def buildtable(data):
     table = PrettyTable([k for k, v in data.trains[0].items()])
     for train in data.trains:
         table.padding_width = 1
         table.add_row([v for k, v in train.items()])
     table.sortby = 'depart'
-    print(table)
+    return table
 
 
 def isline(filters, linename):
@@ -102,8 +104,22 @@ def main():
                 line.hastrains = True
                 lines.append(line)
 
+#   Write data to file in Dropbox or STDOUT
+    output = ''
     for line in lines:
-        display(line)
+        output += '\n===========\n{:s}\n'.format(line.name.strip("'[]'"))
+        output += str(buildtable(line))
+    if not output:
+        output = "No train information available."
+#   Attach timestamp.
+    output += '\n\n{:s}: {:s}'.format("Last updated", str(datetime.now()))
+#   Determine output method.
+    if not cmdline.options.file:
+        print(output)
+    else:
+        with open(cmdline.options.file, 'w') as o:
+            o.write(output)
+
 
 if __name__ == '__main__':
     try:
