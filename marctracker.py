@@ -3,60 +3,79 @@
 import re
 import sys
 import urllib2
-from BeautifulSoup import BeautifulSoup
+from lxml import html,etree
 
 class HTML():
-    def __init__(self):
-        self.url = ''
-        self.soup = self.getsoup()
-        self.tables = self.gettables()
-
-    def getsoup(self):
-        res = urllib2.urlopen('http://www.marctracker.com/PublicView/status.jsp')
-        return BeautifulSoup(res.read())
+    def __init__(self,url):
+        self.url = url
+        self.res = urllib2.urlopen(self.url)
+        self.tree = html.fromstring(self.res.read())
+        self.tables = []
 
     def gettables(self):
-        tables = self.soup('table')
-        return [ Table(table) for table in tables ] 
+        return self.tree.xpath('/html/body/table[3]/tr/td/table')
 
 class Table():
-    def __init__(self,soup):
-        self.soup = soup
-        self.value = self.soup.string
-        self.rows = self.getrows()
+    def __init__(self,tree):
+        self.tree = tree
+        self.line = self.getline()
+        self.isline = self.checkline()
+        self.hastrains = False
+        self.headers = []
+        self.trains = []
 
-    def getrows(self):
-        rows = self.soup.findAll('tr')
-        return [ Row(row) for row in rows ]
-        
-class Row():
-    def __init__(self,soup):
-        self.soup = soup
-        self.data = self.getdata()
+    def getline(self):
+        return str(self.tree.xpath('.//td[@class="textStatusLine"]/text()'))
 
-    def getdata(self):
-        data = self.soup.findAll('td')
-        return [ Data(datum) for datum in data ]
+    def checkline(self):
+        if 'BRUNSWICK' in self.line:
+            return True
 
-class Data():
-    def __init__(self,soup):
-        self.soup = soup
-        self.value = self.soup.renderContents()
+    def getheaders(self):
+        trees = self.tree.xpath('.//tr[@class="textStatusHdr"]')
+        return [ tree.xpath('.//th/text()') for tree in trees ]
+
+    def gettrains(self):
+        trains = []
+        trees = self.tree.xpath('.//tr[@class="textStatusAll"]')
+        rows = [ tree.xpath('.//td') for tree in trees ]
+        for row in rows:
+            text = [ column.text_content().strip() for column in row ]
+            train = { 'holder1':text[0],
+                      'holder2':text[1],
+                      'id':text[2],
+                      'dest':text[3],
+                      'depart':text[4],
+                      'status':text[5],
+                      'delay':text[6],
+                      'last':text[7],
+                      'msg':text[8] }
+            trains.append(train)
+        return trains
+
+def DEBUG(name, output):
+    with open(name+'.debug','w') as o:
+        for line in output:
+            o.write(line)
 
 def main():
-    html = HTML()
-    html.url = 'http://www.marctracker.com/PublicView/status.jsp'
-    html.soup = html.getsoup()
-    for table in html.tables:
-        for row in table.rows:
-            for data in row.data:
-                if not 'BRUNSWICK' in data.value:
-                    print table
-                    if table in html.tables:
-                        print 'FOUND'
-                    html.tables.remove(table)
+    Lines = []
+    html = HTML('http://www.marctracker.com/PublicView/status.jsp')
+    html = HTML('http://web.archive.org/web/20140114221629/http://www.marctracker.com/PublicView/status.jsp')
+    html.tables = html.gettables()
+    for tbl in html.tables:
+        table = Table(tbl)
+        if table.isline:
+            table.headers = table.getheaders()
+            table.trains = table.gettrains()
+            if len(table.trains) > 0:
+                Lines.append(table)
 
-    print html.tables
+    for Line in Lines:
+        print '''%s
+---''' % (Line.line)
+        for train in Line.trains:
+            print '%6s || %-25s || %10s || %10s' % (train['id'],train['dest'],train['status'],train['depart'])
     
 if __name__ == '__main__':
     try:
