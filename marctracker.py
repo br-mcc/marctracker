@@ -52,17 +52,23 @@ class TrainLine:
         rows = [tree.xpath('.//td') for tree in trees]
         for row in rows:
             text = [str(column.text_content().strip()) for column in row]
-            train = {'holder1': text[0],
-                     'holder2': text[1],
-                     'id': text[2],
-                     'dest': text[3],
-                     'depart': text[4],
-                     'status': text[5],
-                     'delay': text[6],
-                     'last': text[7],
-                     'msg': text[8]}
+            train = Train(text)
             trains.append(train)
         return trains
+
+
+class Train:
+    def __init__(self, data):
+        self.id = data[2]
+        self.status = data[5]
+        self.nextstation = data[3]
+        self.depart = data[4]
+        self.delay = data[6]
+        self.lastupdate = data[7]
+        self.msg = data[8]
+        self.output = [self.id, self.status,
+                       self.nextstation, self. depart,
+                       self.delay, self.lastupdate, self.msg]
 
 
 def debug(name, output):
@@ -72,11 +78,12 @@ def debug(name, output):
 
 
 def buildtable(data):
-    table = PrettyTable([k for k, v in data.trains[0].items()])
+    columns = ['ID', 'STATUS', 'NEXT STATION', 'EST DEPARTURE', 'DELAY', 'LAST UPDATE', 'MESSAGE']
+    table = PrettyTable(columns)
     for train in data.trains:
         table.padding_width = 1
-        table.add_row([v for k, v in train.items()])
-    table.sortby = 'depart'
+        table.add_row(train.output)
+    table.sortby = 'EST DEPARTURE'
     return table
 
 
@@ -104,7 +111,7 @@ def main():
                 line.hastrains = True
                 lines.append(line)
 
-#   Write data to file in Dropbox or STDOUT
+#   Write data to file or STDOUT
     output = ''
     for line in lines:
         output += '\n===========\n{:s}\n'.format(line.name.strip("'[]'"))
