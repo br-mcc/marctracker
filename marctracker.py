@@ -119,7 +119,7 @@ def main():
     if not output:
         output = "No train information available."
 #   Attach timestamp.
-    output += '\n\n{:s}: {:s}'.format("Last updated", str(datetime.now()))
+    output += '\n\n{:s}: {:s}\n'.format("Last updated", str(datetime.now()))
 #   Determine output method.
     if not cmdline.options.file:
         print(output)
